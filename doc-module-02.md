@@ -1,106 +1,128 @@
-## Simulating Real-Time Data Ingestion with Kinesis Data Generator (KDG)
+## Running Batch Jobs with AWS Batch
 
-For the sake of this lab, we will be using Amazon Kinesis Data Generator (KDG) to simulate a live stream of data. This a a tool open sourced by AWS available on: https://awslabs.github.io/amazon-kinesis-data-generator/web/help.html
+AWS Batch is a set of batch management capabilities that enables developers, scientists, and engineers to easily and efficiently run hundreds of thousands of batch computing jobs on AWS. AWS Batch dynamically provisions the optimal quantity and type of compute resources (e.g., CPU or memory optimized instances) based on the volume and specific resource requirements of the batch jobs submitted. With AWS Batch, there is no need to install and manage batch computing software or server clusters, allowing you to instead focus on analyzing results and solving problems. AWS Batch plans, schedules, and executes your batch computing workloads using Amazon EC2 and Spot Instances.
 
-### 1. Create a Cognito User
+### 1. Configure AWS Batch
 
-In order to use this tool, you'll need to create an Amazon Cognito user in your AWS account with permissions to send data to Kinesis. We provide a CloudFormation script to automate this for you.
+There are a few components you'll need to get familiar with AWS Batch:
 
-CloudFormation templates allows you specify AWS resources with code, which the CloudFormation service can provision for you.
+1.  **Compute Environment**: Compute resources used to run the actual jobs. Environments are flexible as you can set it up to only use a particular type of EC2 instance like m4.large & c5.large, or specify the minimum/desired/maximum vCPUs and let AWS Batch pick the optimal instances. Because batch jobs do not usually require persistent running EC2 servers, spot instances can also be leveraged to increase cost effectiveness, with savings of up to 90% when compared to on-demand EC2 instances.
 
-#### 1.1 Create Cognito User with CloudFormation
+2.  **Job Definitions**: A job definition specifies how jobs are to be run. Think of it as a blueprint for the batch job which defines the resources required to run, ranging from vCPU, RAM, storage to the IAM permissions required so it can access other AWS Services programmatically. Job definitions can also be overwritten when submitted programmatically.
 
-1.  Go to https://awslabs.github.io/amazon-kinesis-data-generator/web/help.html
+3.  **Job Queues**: When you submit an AWS Batch job, you submit it to a particular job queue, where it resides until it is scheduled onto a compute environment.
 
-2.  Select **Create a cognito User with CloudFormation**, which will launch it in a new browser tab
+**Reference**: https://docs.aws.amazon.com/batch/latest/userguide/what-is-batch.html
 
-3.  Now complete the CloudFormation template to create the resources:
+#### 1.1 Create IAM Instance Role for AWS Batch Instances
 
-Ensure the region at the top right corner is **Oregon**:
+1.  As a best practice, when your containerised batch job runs on an EC2 instance, you should rely on the EC2 instance role of the underlying EC2 instance to retrieve temporary credentials to access AWS resources (S3) instead of passing in permanent credentials into the container directly in the code.
 
-![KDG Region](./imgs/02/02.png)
+2.  We will now create the EC2 instance role with permissions for S3. In the AWS Console, search for **IAM** under AWS Services and select **IAM**.
 
-**Note**: While the cognito user KDG will use is created in Oregon region, the target Kinesis Firehose can be in Singapore region
+3.  Select **Roles** on the left menu
 
-- Part 1: Select Template - Select **Next**
-- Part 2: Specify Details - Enter **[iamuser-kinesis-generator]** as the stack name. Enter **[iamuser-kinesis-user]** as the username and choose a strong password. Select **Next**
-- Part 3: Options - Leave the default settings and select **Next**
-- Part 4: Review - Select the checkbox for **I acknowledge that AWS CloudFormation might create IAM resources**. Select **Create**
+4.  Select **Create role**
 
-4.  To get the URL to access KDG, expands the Outputs dropdown:
+5.  Select **Elastic Container Service**
 
-![KDG URL](./imgs/02/03.png)
+6.  Select **Elastic Container Service Task**
 
-#### 1.2 Validate the newly created Cognito User
+7.  Select **Next: Permissions**
 
-1.  Enter the **[iamuser-kinesis-generator]** and password you used earlier in the top right corner to login
+8.  In the search bar, enter **s3full**, and select the checkbox for **AmazonS3FullAccess**:
 
-### 2. Start Sending Data to Kinesis Firehose
+![AmazonS3FullAccess](./imgs/04/01.png)
 
-We can now simulate a data stream with KDG
+8.  Select **Next: Review**
 
-#### 2.1 Configure the Generator
+9.  Enter **[iamuser-jobrole]** as the **Role name**, and select **Create role**
 
-Enter the following details:
+**Note**: For the purpose of this lab, we will be giving full S3 permissions. However, as a Security best practice, you should follow the principle of least privilege and only grant the minimum amount of permissions needed based on your application's requirements
 
-1.  Region: **ap-southeast-1** (Singapore)
-2.  Stream/Delivery stream: **[iamuser-firehose]**
-3.  Records per second: 100
+#### 1.2 Create Compute Environment
 
-#### 2.2. Specify Data Model of records
+1.  In the AWS Console, search for **Batch** under AWS Services and select it.
 
-1.
+2.  If you currently don't have any resource sconfigured in AWS Batch, you'll be greeted with the **Getting Started** page. Select **Get started**:
 
-```
-{
-  "apMac": "00-40-96-01-23-45",
-  "apTags": ["AP1","Capital Square"],
-  "apFloors": ["1"],
-  "observations": [
-    {
-      "clientMac": "c4:b3:02:d4:54:14",
-      "ipv4": "/111.65.32.53",
-      "ipv6": null,
-      "seenTime": "{{date.utc("YYYY-MM-DD HH:mm:ss.SSS")}}",
-      "seenEpoch": "integer",
-      "ssid": "fabian-note-8",
-      "rssi": "integer",
-      "manufacturer": "Samsung",
-      "os": "Android Oreo",
-      "location": {
-        "lat": 1.290270,
-        "lng": 1.290270,
-        "unc": 1,
-        "x": "[<decimal>, ...]",
-        "y": "[<decimal>, ...]"
-      }
-    }
-  ]
-}
-```
+![Batch Get Started](./imgs/04/02.png)
 
-#### 2.3 Send Data to Kinesis Firehose & Validate Delivery
+3.  However, we will not be using the getting started Wizard, but create each Batch component individually (Compute Environment, Job Definition etc.) to get a deeper understanding in the dependencies. Select **Cancel** at the bottom right
 
-1.  Select **Send Data**
+4.  Select **Compute Environment** from the left menu
 
-2.  Select **Stop Sending Data to Kinesis** once you've sent at least 2000 records:
+5.  Enter the following details:
 
-![Stop Sending](./imgs/02/04.png)
+- **Compute environment name**: [iamuser-env]
+- **Service role**: Create new role
+- **Instance role**: Create new role
 
-3.  We will now take a look at the data ingested by Kinesis Firehose and delivered to S3. In the AWS Console, search for **S3** under AWS Services and select it
+In the interest of time, we will be setting the **Minimum vCPUs** and **Desired vCPUs** to 2, which will keep at leat 1 persistent server running even when there are no jobs. For better cost effectiveness, a minimum and desired of 0 will suffice, and AWS Batch will spin up a server only when a job is submitted.
 
-4.  Select the **[iamuser-raw-bucket]** bucket, and notice the folder structure follows a **"YYYY/MM/DD/HH" UTC** time format to split the data. This is the default structure firehose uses, but is configurable by users.
+- **Minimum vCPUs**: 2
+- **Desired vCPUs**: 2
 
-You can read more about changing the prefix here: https://docs.aws.amazon.com/firehose/latest/dev/create-destination.html#create-destination-s3
+Leave the remaining settings as default and select **Create**
 
-5.  Keep entering each subfolder until you reach the files:
+#### 1.3 Create Job Queue
 
-![Delivered files](./imgs/02/05.png)
+1.  Select **Job Queues** on the left menu
 
-6.  Kinesis Firehose will split files up based on your buffer settings, remember we set our buffer at 1MB and 60 settings. This means Kinesis Firehose will deliver a file once either 60 seconds or passed or 1MB of data has been ingested, whichever happens first.
+2.  Select **Create queue**
 
-7.  Select a file, select **Download**, and open up the file in a text editor. Notice the JSON has been delivered to our S3 bucket in it's raw form, in a newline delimited format:
+3.  Enter the following details:
 
-![RAW JSON](./imgs/02/06.png)
+- **Queue name**: [iamuser-jq]
+- **Priority**: 1
+- **Select a compute environment**: [iamuser-env]
 
-We're done! continue to [Part 3 : Running Batch Jobs with AWS Batch](./doc-module-03.md)
+Select **Create**
+
+#### 1.4 Create Job Defnition
+
+1.  Select **Job definitions** from the left menu
+
+2.  Select **Create**
+
+3.  Enter the following details:
+
+- **Job definition name**: [iamuser-jdef]
+- **Job role**: [iamuser-jobrole]
+- **Container image**: [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser-repo]:latest
+  **Note**: This is the image identifier we used at the end of part 3 in our **docker push** command
+- **User**: nobody
+
+Select **Create job definition**
+
+### 2. Submit Job to AWS Batch
+
+#### 2.1 Submit Job
+
+1.  Select **Jobs** on the left menu
+
+2.  Select **Submit job**
+
+3.  Enter the following details:
+
+- **Job name**: [iamuser-jobname]
+- **Job defnition**: [iamuser-jdef]:1
+- **Job queue**: [iamuser-jq]
+
+Leave the remaining settings as default and select **Submit job**
+
+We're done! continue to [Lab 3 : Running Batch Jobs with AWS Batch](./doc-module-03.md)
+
+### 3. Monitor Job Status
+
+Simple metrics for jobs submitted to an AWS Batch Job Queue can be monitored within the console
+
+1.  Select **Jobs** on the left menu
+
+2.  Jobs can be monitored based on Job Queue, as well as the Job Status:
+
+![Monitor Jobs](./imgs/04/03.png)
+
+3.  As we configured out compute environment to have a minimum of 2 vCPUs, chances are the persistent server running has already picked up the job to execute. Therefore, you might not see your recently submitted job under the **submitted** status.
+
+4.  Select **succeeded**

@@ -64,8 +64,6 @@ $ touch batchjob.py
 ```
 import boto3
 import datetime
-import botocore
-import os, errno, shutil
 
 ## Configuration
 now = datetime.date.today()
@@ -73,58 +71,23 @@ YEAR = str(now.year).zfill(4)
 MONTH = str(now.month).zfill(2)
 DAY = str(now.day).zfill(2)
 PREFIX = YEAR+'/'+MONTH+'/'+DAY+'/'
-print (PREFIX)
-RAW_BUCKET = '[iamuser-raw-bucket]' # replace with your S3 bucket name for [iamuser-raw-bucket]
-WORKBOOK_BUCKET = '[iamuser-workbooks]' # replace with your S3 bucket name for [iamuser-workbooks]
-SCRATCH = 'scratch'
+WORKBOOK_BUCKET = 'builderlee-cicd' # replace with your S3 bucket name for [iamuser-workbooks]
 OUTPUT_FILE = '[iamuser_output_file.json]' # replace with [iamuser_output_file.json]
 
 ## Instantiate S3 object via boto3
 s3 = boto3.resource('s3')
-sg_bucket = s3.Bucket(RAW_BUCKET)
 
-## Create scratch space
-try:
-    os.makedirs(SCRATCH)
-except OSError as e:
-    if e.errno != errno.EEXIST:
-        raise
+f = open(OUTPUT_FILE, "a")
+f.write("Output of my batch job!")
 
-        # Download all data files for the day
-        print ('Downloading files from S3 with the following prefix: '+PREFIX)
-
-        if not sg_bucket.objects:
-            print('Bucket: ' + RAW_BUCKET + 'is empty. No files to download')
-        downloaded = 0
-        for obj in sg_bucket.objects.filter(Prefix=PREFIX):
-            #print(obj.key)
-            if len(str(obj.key)) > 15:
-                try:
-                    sg_bucket.download_file(obj.key, SCRATCH+'/'+obj.key[-78:])
-                    print('File downloaded: '+obj.key)
-                    downloaded += 1
-                except botocore.exceptions.ClientError as e:
-                    if e.response['Error']['Code'] == "404":
-                        print("The object does not exist.")
-                    else:
-                        raise
-        print('Downloaded ' + str(downloaded) + ' files')
-
-        ## Merge Files
-        with open(OUTPUT_FILE,'wb') as wfd:
-            for f in os.listdir(SCRATCH):
-                print('Merging file: '+f)
-                with open(SCRATCH+'/'+f,'rb') as fd:
-                    shutil.copyfileobj(fd, wfd, 1024*1024*10)
-
-        ## Upload processed JSON to Workbook Bucket
-        wb_bucket = s3.Bucket(WORKBOOK_BUCKET)
-        wb_bucket.upload_file(OUTPUT_FILE, PREFIX+OUTPUT_FILE)
+## Upload processed JSON to Workbook Bucket
+wb_bucket = s3.Bucket(WORKBOOK_BUCKET)
+print("Uploading file to s3 bucket path: " + PREFIX+OUTPUT_FILE)
+wb_bucket.upload_file(OUTPUT_FILE, PREFIX+OUTPUT_FILE)
 ```
 
 10. You'll need to change a number of parameters under the configuration:
 
-- **RAW_BUCKET**: The name of your raw S3 bucket **[iamuser-staging-bucket]**
 - **WORKBOOK_BUCKET**: The name of your Workbooks bucket **[iamuser-workbooks]**
 - **OUTPUT_FILE**: The name of your processed file to be uploaded back to S3 **[iamuser_output_file.json]**
 
@@ -136,16 +99,16 @@ $ python batchjob.py
 
 You should see an output similar to the screenshot below:
 
-![Batch Job Output](./imgs/03/05.png)
+![Batch Job Output](./imgs/01/05.png)
 
 12. To validate the **[iamuser_output_file.json]** file has been uploaded to S3, run the following command or view the bucket via the AWS console:
 
 ```
-$  aws s3 ls builderlee-workbooks --recursive
+$  aws s3 ls builderlee-cicd --recursive
 ```
 
 Console:
-![Batch Job Output](./imgs/03/06.png)
+![Batch Job Output](./imgs/01/06.png)
 
 ### 2. Containerise Batch Job
 
@@ -165,11 +128,11 @@ To store these docker images, we will create an Elastic Container Registry which
 
 5.  Select **Next step**. You now have a private repository for your docker images:
 
-![ECR Repo](./imgs/03/07.png)
+![ECR Repo](./imgs/01/07.png)
 
 6.  On the same page, there are also useful instructions displayed on how to authenticate, and push images into ECR:
 
-![ECR Repo](./imgs/03/08.png)
+![ECR Repo](./imgs/01/08.png)
 
 #### 2.2 Create Containerised Batch Job
 
@@ -179,7 +142,7 @@ AWS Batch supports any job that can be executed as a Docker container. Container
 
 ```
 $ pwd
-/home/ec2-user/environment/kinesis-workshop
+/home/ec2-user/environment/workshop
 ```
 
 2.  Create a Dockerfile:
@@ -208,13 +171,13 @@ ENTRYPOINT ["python", "/usr/local/bin/batchjob.py"]
 4.  Build Docker image:
 
 ```
-$ docker build -t [iamuser]-repo/batchjob .
+$ docker build -t [iamuser]-cicd/batchjob .
 ```
 
 5.  After the build completes, tag your image so you can push the image to this repository:
 
 ```
-$ docker tag [iamuser]-repo/batchjob:latest [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser]-repo:latest
+$ docker tag [iamuser]-cicd/batchjob [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser]-cicd:latest
 ```
 
 6.  Run the following command to view your newly built and tagged image:
@@ -222,7 +185,9 @@ $ docker tag [iamuser]-repo/batchjob:latest [awsaccountid].dkr.ecr.ap-southeast-
 ```
 $ docker images
 REPOSITORY                                                          TAG                 IMAGE ID            CREATED             SIZE
-327377359968.dkr.ecr.ap-southeast-1.amazonaws.com/builderlee-repo   latest              0d028ad43a87        9 minutes ago       301MB
+REPOSITORY                                                          TAG                 IMAGE ID            CREATED              SIZE
+builderlee-cicd/batchjob                                            latest              3ceeb2224a10        About a minute ago   447MB
+327377359968.dkr.ecr.ap-southeast-1.amazonaws.com/builderlee-cicd   latest              3ceeb2224a10        About a minute ago   447MB
 ```
 
 7.  Before we can push our image to ECR, we need to get the login credentials with the following command:
@@ -241,19 +206,19 @@ Login Succeeded
 8.  Run the following command to push the image to ECR:
 
 ```
-$ docker push [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser]-repo:latest
+$ docker push [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser]-cicd:latest
 ```
 
 9.  To validate the image has been updated to ECR, search for **ECS** under AWS Services and select Elastic Container Service.
 
 10. Select **Repositories**
 
-11. Select **[iamuser-repo]**
+11. Select **[iamuser-cicd]**
 
 12. Observe that the image has been pushed to ECR:
 
-![ECR Repo](./imgs/03/09.png)
+![ECR Repo](./imgs/01/09.png)
 
-**Note**: Record down the image destination of your push, as we will need to tell AWS Batch Job Definition which container to use in the next part of the lab. In my example, the image identifier is **327377359968.dkr.ecr.ap-southeast-1.amazonaws.com/builderlee-repo:latest**
+**Note**: Record down the image destination of your push, as we will need to tell AWS Batch Job Definition which container to use in the next part of the lab. In my example, the image identifier is **327377359968.dkr.ecr.ap-southeast-1.amazonaws.com/builderlee-cicd:latest**
 
-We're done! continue to [Part 4 : Running Batch Jobs with AWS Batch](./doc-module-04.md)
+We're done! continue to [Part 2 : Running Batch Jobs with AWS Batch](./doc-module-02.md)
