@@ -4,7 +4,7 @@
 
 **IMPORTANT (Mandatory)**
 
-**Please set up or check your dev environment for more efficient studying for this workshop before starting**
+**Please set up or check your dev environment before the actual day of the workshop to maximise productivity**
 
 1.  IAM user with AdministratorAccess policy attached
 
@@ -16,7 +16,7 @@
 
 <hr>
 
-## [Part 1 : Data Ingestion with Kinesis Firehose](./doc-module-01.md)
+## [Part 1 : Creating a Sample Python Application](./doc-module-01.md)
 
 <hr>
 

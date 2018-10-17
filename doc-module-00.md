@@ -16,7 +16,7 @@
 
 2.  Select **Create environment**
 
-3.  Specify Environment name : **[iamuser-cicd-workshop]**
+3.  Specify Environment name : **[iamuser-workshop]**
 
 ![ec2 instance](./imgs/00/01.png)
 
@@ -47,9 +47,9 @@ $ sudo yum -y update
 1.  Create folder, and change current directory
 
 ```
-$ mkdir cicd-workshop
+$ mkdir workshop
 
-$ cd cicd-workshop
+$ cd workshop
 ```
 
 2.  Configure Git credential helper included in the AWS CLI. The credential helper allows Git to use HTTPS and a cryptographically signed version of your IAM user credentials or Amazon EC2 instance role whenever Git needs to authenticate with AWS to interact with AWS CodeCommit repositories.
@@ -86,4 +86,4 @@ sudo python -m pip install boto3
 pip install awscli --upgrade --user
 ```
 
-We're done, continue to [Part 1 : Data Ingestion with Kinesis Firehose](./doc-module-01.md)
+We're done, continue to [Part 1 : Creating a Sample Python Application](./doc-module-01.md)

@@ -1,72 +1,259 @@
-## Part 1 : Data Ingestion with Kinesis Firehose
+## Creating a Sample Python Application
 
-In this module, we will create a Kinesis Firehose Delivery Stream to ingest data and deliver it to a staging S3 bucket.
+We'll be building a sample Python application. When building application that run on AWS, most developers want to take advantage of our managed services in a programmatic manner. boto3, the AWS SDK for Python, allows Python developers to write software that makes use of services like S3.
 
-We will need to create 2 buckets, one to store the raw data ingested by Kinesis Firehose, and another staging bucket to hold data to be consumed by our batch based analytics
+### 1. Create Sample Application
 
-### 1. Create S3 Buckets
+This sample application will:
 
-#### 1.1 Create Raw Data Bucket
+1.  Pull the daily data from your **[iamuser-raw-bucket]** S3 bucket delivered by Kinesis Firehose.
+2.  It'll merge the various files delivered into a single line-delimited JSON file and upload it to **[iamuser-workbooks]** S3 bucket
 
-1.  In the AWS Console, search for **S3** under AWS Services and select it
+The purpose of this application is simulate data processing and boilerplate code required to interact with S3 as part of an analytics processing workflow, rather than an actual analytics processing which is up to the developer to implement.
 
-![S3 Service](./imgs/01/01.png)
+#### 1.1 Using the Cloud9 IDE Environment
 
-2.  Select **Create bucket**
+We'll be using the Cloud9 environment created in **Part 0** of the lab.
 
-- Choose a name for your S3 bucket, the S3 bucket namespace is global, so you'll need to pick a unique name. Include your IAM user to help identify your bucket and make it unique: **[iamuser-raw-bucket]**. In my example, I'll be going with **builderlee-raw-bucket**
-- Ensure the Region selected is **Asia Pacific (Singapore)**
-- Select **Create**
+1.  In the AWS Console, search for **Cloud9** under AWS Services and select **Cloud9**.
 
-#### 1.2 Create Staging Data Bucket
+2.  Select **Open IDE** to use the Cloud9 IDE environment in a new tab:
 
-1.  Select **Create bucket**
+![Open IDE](./imgs/01/01.png)
 
-- Enter **[iamuser-staging-bucket]** as the bucket name. In my example, I'll be going with **builderlee-staging-bucket**
-- Ensure the Region selected is **Asia Pacific (Singapore)**
-- Select **Create**
+3.  At the bottom of the screen, there will be a terminal window:
 
-#### 1.3 Create Workbook Bucket
+![Cloud9 Terminal](./imgs/03/02.png)
 
-1.  Select **Create bucket**
+Cloud9 runs on an Amazon Linux distribution, which gives us a convenient bash shell to use.Check your current directory:
 
-- Enter **[iamuser-workbooks]** as the bucket name. In my example, I'll be going with **builderlee-workbooks**
-- Ensure the Region selected is **Asia Pacific (Singapore)**
-- Select **Create**
+```
+$ pwd
+/home/ec2-user/environment
+```
 
-### 2. Create Kinesis Firehose Delivery Stream
+4.  Ensure your current directory is **/home/ec2-user/environment**, if it isn't, run the following command to change to it:
 
-1.  In the AWS Console, select **Services** at the top and enter **kinesis**, and select **Kinesis**
+```
+$ cd /home/ec2-user/environment
+```
 
-2.  At the welcome screen, select **Get started**, followed by **Create delivery stream**
+5.  Make a new working directory for our lab, and enter it:
 
-- Step 1: Name and source - Use **[iamuser-firehose]** as the **Delivery stream name**, leave the remaining settings as default and select **Next**
-- Step 2: Process records - Leave the default settings and select **Next**
-- Step 3: Choose destination - Under S3 bucket, choose your raw bucket **[iamuser-raw-bucket]**, and select **Next**
+```
+$ mkdir workshop
+$ cd workshop
+```
 
-  ![S3 Destination](./imgs/01/02.png)
+6.  Create a python file:
 
-- Step 4: Configure settings - Change the **Buffer interval** to 60 seconds.
+```
+$ touch batchjob.py
+```
 
-  ![Buffer Interval](./imgs/01/03.png)
+7.  The file will now appear on the file explorer pane on the left:
 
-  Under IAM role, select **Create new or choose**
+![File Explorer Pane](./imgs/01/02.png)
 
-  ![IAM Role](./imgs/01/04.png)
+8.  Double click the file to edit the file in the visual editor:
 
-  On the new tab:
+![Visual Editor](./imgs/01/04.png)
 
-  - Select **Create a new IAM Role**
-  - Enter **[iamuser_firehose_delivery_role]** as the Role Name and select **Allow**.
+9.  Paste the following sample code into the file:
 
-    ![Create Role](./imgs/01/05.png)
+```
+import boto3
+import datetime
+import botocore
+import os, errno, shutil
 
-  Select **Next**
+## Configuration
+now = datetime.date.today()
+YEAR = str(now.year).zfill(4)
+MONTH = str(now.month).zfill(2)
+DAY = str(now.day).zfill(2)
+PREFIX = YEAR+'/'+MONTH+'/'+DAY+'/'
+print (PREFIX)
+RAW_BUCKET = '[iamuser-raw-bucket]' # replace with your S3 bucket name for [iamuser-raw-bucket]
+WORKBOOK_BUCKET = '[iamuser-workbooks]' # replace with your S3 bucket name for [iamuser-workbooks]
+SCRATCH = 'scratch'
+OUTPUT_FILE = '[iamuser_output_file.json]' # replace with [iamuser_output_file.json]
 
-- Step 5: Review - Select **Create delivery stream**
+## Instantiate S3 object via boto3
+s3 = boto3.resource('s3')
+sg_bucket = s3.Bucket(RAW_BUCKET)
 
-**Note**: We need to create an IAM role to give Firehose service permissions to deliver files to our S3 buckets.
+## Create scratch space
+try:
+    os.makedirs(SCRATCH)
+except OSError as e:
+    if e.errno != errno.EEXIST:
+        raise
 
-Our Kinesis Firehose delivery stream is now ready to ingest and deliver data to the configured S3 buckets.
+        # Download all data files for the day
+        print ('Downloading files from S3 with the following prefix: '+PREFIX)
 
-We're done, continue to [Part 2 : Simulating Real-Time Data ingestion with Kinesis Data Generator](./doc-module-02.md)
+        if not sg_bucket.objects:
+            print('Bucket: ' + RAW_BUCKET + 'is empty. No files to download')
+        downloaded = 0
+        for obj in sg_bucket.objects.filter(Prefix=PREFIX):
+            #print(obj.key)
+            if len(str(obj.key)) > 15:
+                try:
+                    sg_bucket.download_file(obj.key, SCRATCH+'/'+obj.key[-78:])
+                    print('File downloaded: '+obj.key)
+                    downloaded += 1
+                except botocore.exceptions.ClientError as e:
+                    if e.response['Error']['Code'] == "404":
+                        print("The object does not exist.")
+                    else:
+                        raise
+        print('Downloaded ' + str(downloaded) + ' files')
+
+        ## Merge Files
+        with open(OUTPUT_FILE,'wb') as wfd:
+            for f in os.listdir(SCRATCH):
+                print('Merging file: '+f)
+                with open(SCRATCH+'/'+f,'rb') as fd:
+                    shutil.copyfileobj(fd, wfd, 1024*1024*10)
+
+        ## Upload processed JSON to Workbook Bucket
+        wb_bucket = s3.Bucket(WORKBOOK_BUCKET)
+        wb_bucket.upload_file(OUTPUT_FILE, PREFIX+OUTPUT_FILE)
+```
+
+10. You'll need to change a number of parameters under the configuration:
+
+- **RAW_BUCKET**: The name of your raw S3 bucket **[iamuser-staging-bucket]**
+- **WORKBOOK_BUCKET**: The name of your Workbooks bucket **[iamuser-workbooks]**
+- **OUTPUT_FILE**: The name of your processed file to be uploaded back to S3 **[iamuser_output_file.json]**
+
+11. Run the python script to test your batch job:
+
+```
+$ python batchjob.py
+```
+
+You should see an output similar to the screenshot below:
+
+![Batch Job Output](./imgs/03/05.png)
+
+12. To validate the **[iamuser_output_file.json]** file has been uploaded to S3, run the following command or view the bucket via the AWS console:
+
+```
+$  aws s3 ls builderlee-workbooks --recursive
+```
+
+Console:
+![Batch Job Output](./imgs/03/06.png)
+
+### 2. Containerise Batch Job
+
+#### 2.1 Create Container Repository
+
+We will be building a docker container to run our batch job, which simplifies continuous development and deployment of our code. There are many benefits of using containers in general which we will not be diving deep into today, but one benefit with batch is that your code is no longer tied to the Amazon Machine Image (AMI) used to launch the batch job, but rather, self-contained inside a docker image which is decoupled from the underlying infrastructure.
+
+To store these docker images, we will create an Elastic Container Registry which is backed by S3, offering us the same durability and cost efficient characteristics.
+
+1.  In the AWS Console, search for **ECS** under AWS Services and select Elastic Container Service.
+
+2.  Select **Repositories** on the left menu
+
+3.  Select **Get started**
+
+4.  Enter **[iamuser-repo]** as the **Repository name**
+
+5.  Select **Next step**. You now have a private repository for your docker images:
+
+![ECR Repo](./imgs/03/07.png)
+
+6.  On the same page, there are also useful instructions displayed on how to authenticate, and push images into ECR:
+
+![ECR Repo](./imgs/03/08.png)
+
+#### 2.2 Create Containerised Batch Job
+
+AWS Batch supports any job that can be executed as a Docker container. Containerising a Python script is relatively simple compared to a full blown web application, and provides many benefits as you have a self contained image then is built programmatically, and abstracts the underlying infrastructure from the runtime environment.
+
+1.  Ensure you are in the lab working directory:
+
+```
+$ pwd
+/home/ec2-user/environment/kinesis-workshop
+```
+
+2.  Create a Dockerfile:
+
+```
+$ touch Dockerfile
+```
+
+3.  Double click **Dockerfile** to edit the file in the visual editor, and add the following code:
+
+```
+FROM amazonlinux:latest
+
+RUN yum -y update
+RUN curl -O https://bootstrap.pypa.io/get-pip.py
+RUN python get-pip.py --user
+RUN python -m pip install boto3
+ADD batchjob.py /usr/local/bin/batchjob.py
+RUN chmod a+x /usr/local/bin/batchjob.py
+WORKDIR /tmp
+USER nobody
+
+ENTRYPOINT ["python", "/usr/local/bin/batchjob.py"]
+```
+
+4.  Build Docker image:
+
+```
+$ docker build -t [iamuser]-repo/batchjob .
+```
+
+5.  After the build completes, tag your image so you can push the image to this repository:
+
+```
+$ docker tag [iamuser]-repo/batchjob:latest [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser]-repo:latest
+```
+
+6.  Run the following command to view your newly built and tagged image:
+
+```
+$ docker images
+REPOSITORY                                                          TAG                 IMAGE ID            CREATED             SIZE
+327377359968.dkr.ecr.ap-southeast-1.amazonaws.com/builderlee-repo   latest              0d028ad43a87        9 minutes ago       301MB
+```
+
+7.  Before we can push our image to ECR, we need to get the login credentials with the following command:
+
+```
+$ $(aws ecr get-login --no-include-email --region ap-southeast-1)
+
+WARNING! Using --password via the CLI is insecure. Use --password-stdin.
+WARNING! Your password will be stored unencrypted in /home/ec2-user/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+```
+
+8.  Run the following command to push the image to ECR:
+
+```
+$ docker push [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser]-repo:latest
+```
+
+9.  To validate the image has been updated to ECR, search for **ECS** under AWS Services and select Elastic Container Service.
+
+10. Select **Repositories**
+
+11. Select **[iamuser-repo]**
+
+12. Observe that the image has been pushed to ECR:
+
+![ECR Repo](./imgs/03/09.png)
+
+**Note**: Record down the image destination of your push, as we will need to tell AWS Batch Job Definition which container to use in the next part of the lab. In my example, the image identifier is **327377359968.dkr.ecr.ap-southeast-1.amazonaws.com/builderlee-repo:latest**
+
+We're done! continue to [Part 4 : Running Batch Jobs with AWS Batch](./doc-module-04.md)
