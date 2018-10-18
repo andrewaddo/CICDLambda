@@ -27,13 +27,3 @@
 ## [Part 3 : Creating a CI/CD Pipeline for you Batch Job](./doc-module-03.md)
 
 <hr>
-
-# More Studies
-
-Set up a Continuous Deployment Pipeline using AWS CodePipeline & Elastic Beanstalk
-https://aws.amazon.com/getting-started/tutorials/continuous-deployment-pipeline/
-
-Microservice with Fargate :
-https://github.com/aws-samples/aws-microservices-deploy-options
-
-DevOps : https://github.com/stelligent/mu

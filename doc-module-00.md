@@ -16,7 +16,7 @@
 
 2.  Select **Create environment**
 
-3.  Specify Environment name : **[iamuser-workshop]**
+3.  Specify Environment name : **[iamuser]-workshop**
 
 ![ec2 instance](./imgs/00/01.png)
 
