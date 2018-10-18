@@ -288,6 +288,3 @@ Aborting on container exit...
 
 12. You can also see in the ECR repository that the new Docker image is tagged with the **Commit ID**:
 ![ImageTag](./imgs/03/06.png)
-
-
-We're done! continue to [Lab 3 : Running Batch Jobs with AWS Batch](./doc-module-03.md)
