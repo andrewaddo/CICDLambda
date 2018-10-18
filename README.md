@@ -28,11 +28,6 @@
 
 <hr>
 
-## [Part 4 : Running Batch Jobs with AWS Batch](./doc-module-04.md)
-
-<hr>
-<hr>
-
 # More Studies
 
 Set up a Continuous Deployment Pipeline using AWS CodePipeline & Elastic Beanstalk
