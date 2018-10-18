@@ -1,4 +1,4 @@
-# Firehose Analytics
+# CI/CD Workshop for AWS Batch
 
 ## Preparation
 
