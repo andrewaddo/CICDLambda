@@ -279,64 +279,15 @@ Aborting on container exit...
 
 9. Select **Create pipeline**
 
-#### 1.3 Create Job Queue
+10. On the next screen, observe that the new pipeline will try to pick up code from the CodeCommit repository and run for the first time:
+![NewPipeline](./imgs/03/04.png)
 
-1.  Select **Job Queues** on the left menu
 
-2.  Select **Create queue**
+11. When the build is complete, take note of the **Source sync**. This is the **Commit ID** from your CodeCommit repository, and allows you to trace the entire workflow from the initial commit to the built Docker image:
+![SourceSync](./imgs/03/05.png)
 
-3.  Enter the following details:
+12. You can also see in the ECR repository that the new Docker image is tagged with the **Commit ID**:
+![ImageTag](./imgs/03/06.png)
 
-- **Queue name**: [iamuser-jq]
-- **Priority**: 1
-- **Select a compute environment**: [iamuser-env]
-
-Select **Create**
-
-#### 1.4 Create Job Defnition
-
-1.  Select **Job definitions** from the left menu
-
-2.  Select **Create**
-
-3.  Enter the following details:
-
-- **Job definition name**: [iamuser-jdef]
-- **Job role**: [iamuser-jobrole]
-- **Container image**: [awsaccountid].dkr.ecr.ap-southeast-1.amazonaws.com/[iamuser-repo]:latest
-  **Note**: This is the image identifier we used at the end of part 3 in our **docker push** command
-- **User**: nobody
-
-Select **Create job definition**
-
-### 2. Submit Job to AWS Batch
-
-#### 2.1 Submit Job
-
-1.  Select **Jobs** on the left menu
-
-2.  Select **Submit job**
-
-3.  Enter the following details:
-
-- **Job name**: [iamuser-jobname]
-- **Job defnition**: [iamuser-jdef]:1
-- **Job queue**: [iamuser-jq]
-
-Leave the remaining settings as default and select **Submit job**
 
 We're done! continue to [Lab 3 : Running Batch Jobs with AWS Batch](./doc-module-03.md)
-
-### 3. Monitor Job Status
-
-Simple metrics for jobs submitted to an AWS Batch Job Queue can be monitored within the console
-
-1.  Select **Jobs** on the left menu
-
-2.  Jobs can be monitored based on Job Queue, as well as the Job Status:
-
-![Monitor Jobs](./imgs/04/03.png)
-
-3.  As we configured out compute environment to have a minimum of 2 vCPUs, chances are the persistent server running has already picked up the job to execute. Therefore, you might not see your recently submitted job under the **submitted** status.
-
-4.  Select **succeeded**
