@@ -20,11 +20,11 @@
 
 <hr>
 
-## [Part 2 : Simulating Real-Time Data ingestion with Kinesis Data Generator ](./doc-module-02.md)
+## [Part 2 :  Running Batch Jobs with AWS Batch](./doc-module-02.md)
 
 <hr>
 
-## [Part 3 : Creating a Sample Python Application](./doc-module-03.md)
+## [Part 3 : Creating a CI/CD Pipeline for you Batch Job](./doc-module-03.md)
 
 <hr>
 
