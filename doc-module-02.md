@@ -111,8 +111,6 @@ Select **Create job definition**
 
 Leave the remaining settings as default and select **Submit job**
 
-We're done! continue to [Lab 3 : Running Batch Jobs with AWS Batch](./doc-module-03.md)
-
 ### 3. Monitor Job Status
 
 Simple metrics for jobs submitted to an AWS Batch Job Queue can be monitored within the console
@@ -126,3 +124,5 @@ Simple metrics for jobs submitted to an AWS Batch Job Queue can be monitored wit
 3.  As we configured out compute environment to have a minimum of 2 vCPUs, chances are the persistent server running has already picked up the job to execute. Therefore, you might not see your recently submitted job under the **submitted** status.
 
 4.  Select **succeeded**
+
+We're done! continue to [Lab 3 : Running Batch Jobs with AWS Batch](./doc-module-03.md)
